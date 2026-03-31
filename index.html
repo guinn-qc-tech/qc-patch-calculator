@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Concrete QC Patch Calculator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>QC Patch Calculator</h1>
+    </header>
+
+    <main>
+        <section class="camera-container">
+            <video id="cameraFeed" autoplay playsinline></video>
+            
+            <canvas id="processingCanvas"></canvas>
+        </section>
+
+        <section class="controls-container">
+            
+            <div class="input-group">
+                <label for="pipeSize">Select Pipe Size:</label>
+                <select id="pipeSize" name="pipeSize">
+                    <option value="" disabled selected>Select geometry...</option>
+                    <option value="15">15-inch RCP</option>
+                    <option value="18">18-inch RCP</option>
+                    <option value="24">24-inch RCP</option>
+                    <option value="30">30-inch RCP</option>
+                    <option value="36">36-inch RCP</option>
+                    <option value="42">42-inch RCP</option>
+                    <option value="48">48-inch RCP</option>
+                    <option value="54">54-inch RCP</option>
+                    <option value="60">60-inch RCP</option>
+                    <option value="72">72-inch RCP</option>
+                    <option value="0">Flat Surface / Flat Slab</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label for="maxDepth">Max Chip Depth (Inches):</label>
+                <input type="number" id="maxDepth" name="maxDepth" step="0.125" min="0" placeholder="e.g., 1.5">
+            </div>
+
+            <div class="input-group checkbox-group">
+                <input type="checkbox" id="isJointDamage" name="isJointDamage">
+                <label for="isJointDamage">Defect is on Spigot or Bell</label>
+            </div>
+
+            <div class="button-group">
+                <button id="captureBtn" class="primary-btn">Scan Defect</button>
+                <button id="resetBtn" class="secondary-btn">Reset</button>
+            </div>
+
+        </section>
+
+        <section class="results-container">
+            <h2>Required Patch Material:</h2>
+            <div class="output-display">
+                <span id="volumeOutput">0.0</span> <span class="unit">cu. in.</span>
+            </div>
+            <div class="output-display">
+                <span id="weightOutput">0.0</span> <span class="unit">lbs</span>
+            </div>
+            
+            <h2>Joint Damage Assessment:</h2>
+            <div class="output-display">
+                <span id="jointPercentageOutput">0.0</span> <span class="unit">% of circumference</span>
+            </div>
+            
+            <p id="statusMessage" class="status-indicator">Awaiting camera initialization...</p>
+        </section>
+
+        <section class="memory-container">
+            <h2>Total Material Used by Size:</h2>
+            <ul id="memoryList" class="memory-list">
+                <li>15-inch RCP: <span id="mem-15">0.0</span> lbs</li>
+                <li>18-inch RCP: <span id="mem-18">0.0</span> lbs</li>
+                <li>24-inch RCP: <span id="mem-24">0.0</span> lbs</li>
+                <li>30-inch RCP: <span id="mem-30">0.0</span> lbs</li>
+                <li>36-inch RCP: <span id="mem-36">0.0</span> lbs</li>
+                <li>42-inch RCP: <span id="mem-42">0.0</span> lbs</li>
+                <li>48-inch RCP: <span id="mem-48">0.0</span> lbs</li>
+                <li>54-inch RCP: <span id="mem-54">0.0</span> lbs</li>
+                <li>60-inch RCP: <span id="mem-60">0.0</span> lbs</li>
+                <li>72-inch RCP: <span id="mem-72">0.0</span> lbs</li>
+                <li>Flat Surface: <span id="mem-0">0.0</span> lbs</li>
+            </ul>
+            <div class="button-group">
+                <button id="clearMemoryBtn" class="danger-btn">Clear All Totals</button>
+            </div>
+        </section>
+    </main>
+
+    <script async src="opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+    
+    <script src="app.js"></script>
+
+</body>
+</html>
