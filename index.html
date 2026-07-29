@@ -2,101 +2,562 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Concrete QC Patch Calculator</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QC Run Board - Patch & Cull Counter</title>
+    <style>
+        :root {
+            --bg-base: #0a0f1c;
+            --bg-card: #151e32;
+            --bg-input: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --pass-color: #10b981;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container { max-width: 600px; width: 100%; padding-bottom: 80px; }
+
+        /* Legal Disclaimer Modal */
+        #disclaimer-modal {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+            z-index: 9999; justify-content: center; align-items: center; padding: 20px;
+        }
+        .disclaimer-content {
+            background: var(--bg-card); border: 2px solid var(--accent-red);
+            padding: 30px; border-radius: 12px; max-width: 500px; text-align: center;
+        }
+        .disclaimer-content h2 { color: var(--accent-red); margin-top: 0; text-transform: uppercase; }
+        .disclaimer-content p { color: #cbd5e1; line-height: 1.6; font-size: 15px; text-align: left; }
+        .agree-btn {
+            background: var(--accent-blue); color: white; border: none; padding: 15px 30px;
+            font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 20px;
+        }
+
+        /* Top Bar */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .lang-toggle { display: flex; background: var(--bg-card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
+        .lang-btn { background: transparent; color: var(--text-muted); border: none; padding: 8px 16px; font-weight: 900; cursor: pointer; font-size: 14px; }
+        .lang-btn.active { background: var(--accent-blue); color: white; }
+        
+        .action-btns button {
+            background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main);
+            padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-left: 5px;
+        }
+
+        /* Controls */
+        .controls-card { background: var(--bg-card); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 20px; }
+        .controls-card label { display: block; font-size: 11px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; }
+        select {
+            width: 100%; padding: 12px; background: var(--bg-input); color: white;
+            border: 1px solid var(--border-color); border-radius: 8px; font-weight: bold; font-size: 16px; outline: none; margin-bottom: 10px;
+        }
+        
+        .ref-flex { display: flex; gap: 10px; }
+        .ref-flex select { margin-bottom: 0; flex: 1; }
+        .info-btn { background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 8px; padding: 0 20px; font-weight: bold; cursor: pointer; }
+
+        /* Mode Toggle */
+        .mode-toggle { display: flex; gap: 10px; margin-bottom: 20px; }
+        .mode-btn {
+            flex: 1; padding: 15px; font-size: 18px; font-weight: 900; text-transform: uppercase;
+            border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-card); color: var(--text-muted); cursor: pointer; transition: 0.2s;
+        }
+        .mode-btn.patch.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+        .mode-btn.cull.active { background: var(--accent-red); color: white; border-color: var(--accent-red); }
+
+        /* Defect Grid */
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .defect-card {
+            background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px;
+            padding: 15px; position: relative; user-select: none; transition: transform 0.1s;
+        }
+        .defect-card:active { transform: scale(0.97); }
+        .defect-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; width: 75%; }
+        .defect-ref { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+        .defect-count { font-size: 32px; font-weight: 900; color: var(--accent-blue); text-align: right; margin-top: 10px; }
+        
+        .minus-btn {
+            position: absolute; top: 10px; right: 10px; background: var(--bg-input); border: none;
+            color: var(--text-muted); width: 30px; height: 30px; border-radius: 6px; font-size: 20px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; z-index: 10;
+        }
+        /* Clickable overlay for incrementing */
+        .increment-overlay { position: absolute; inset: 0; cursor: pointer; z-index: 5; }
+
+        /* Generic Modal */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 5000; justify-content: center; align-items: center; padding: 20px; }
+        .modal-body { background: var(--bg-card); padding: 25px; border-radius: 12px; border: 1px solid var(--border-color); max-width: 500px; width: 100%; max-height: 80vh; overflow-y: auto; }
+        .modal-title { margin-top: 0; font-size: 20px; font-weight: bold; }
+        .modal-close { background: var(--bg-input); color: white; border: 1px solid var(--border-color); padding: 12px; width: 100%; border-radius: 8px; margin-top: 20px; cursor: pointer; font-weight: bold; }
+
+        /* History Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+        th, td { border: 1px solid var(--border-color); padding: 8px; text-align: left; }
+        th { background: var(--bg-input); color: var(--text-muted); }
+        .export-btn { background: var(--pass-color); color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+
+    </style>
 </head>
 <body>
 
-    <header>
-        <h1>QC Patch Calculator</h1>
-    </header>
+<!-- Legal Disclaimer -->
+<div id="disclaimer-modal">
+    <div class="disclaimer-content">
+        <h2 id="ui-disc-title">Terms & Conditions</h2>
+        <p id="ui-disc-p1">This application utilizes 2026 ASTM C76 and AASHTO standards for baseline structural calculations.</p>
+        <p id="ui-disc-p2">Additional standard references (NPCA, ACPA, ACI) are provided for informational and educational purposes only.</p>
+        <p id="ui-disc-p3"><strong>WARNING:</strong> Engineering standards update frequently. You must verify all tolerances against your plant's current engineered drawings. The developers assume no liability for structural decisions made using this tool.</p>
+        <button class="agree-btn" id="ui-disc-btn" onclick="acceptDisclaimer()">I AGREE</button>
+    </div>
+</div>
 
-    <main>
-        <section class="camera-container">
-            <video id="cameraFeed" autoplay playsinline></video>
-            
-            <canvas id="processingCanvas"></canvas>
-        </section>
+<div class="container">
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="lang-toggle">
+            <button id="lang-en" class="lang-btn active" onclick="setLanguage('en')">EN</button>
+            <button id="lang-es" class="lang-btn" onclick="setLanguage('es')">ES</button>
+        </div>
+        <div class="action-btns">
+            <button onclick="showHistory()" id="ui-btn-hist">History Log</button>
+        </div>
+    </div>
 
-        <section class="controls-container">
-            
-            <div class="input-group">
-                <label for="pipeSize">Select Pipe Size:</label>
-                <select id="pipeSize" name="pipeSize">
-                    <option value="" disabled selected>Select geometry...</option>
-                    <option value="15">15-inch RCP</option>
-                    <option value="18">18-inch RCP</option>
-                    <option value="24">24-inch RCP</option>
-                    <option value="30">30-inch RCP</option>
-                    <option value="36">36-inch RCP</option>
-                    <option value="42">42-inch RCP</option>
-                    <option value="48">48-inch RCP</option>
-                    <option value="54">54-inch RCP</option>
-                    <option value="60">60-inch RCP</option>
-                    <option value="72">72-inch RCP</option>
-                    <option value="0">Flat Surface / Flat Slab</option>
-                </select>
-            </div>
+    <!-- Controls -->
+    <div class="controls-card">
+        <label id="ui-lbl-size">Pipe Size Selection</label>
+        <select id="size-select" onchange="changeSize()">
+            <option value="12">12" Pipe</option>
+            <option value="15">15" Pipe</option>
+            <option value="18">18" Pipe</option>
+            <option value="24" selected>24" Pipe</option>
+            <option value="30">30" Pipe</option>
+            <option value="36">36" Pipe</option>
+            <option value="42">42" Pipe</option>
+            <option value="48">48" Pipe</option>
+            <option value="54">54" Pipe</option>
+            <option value="60">60" Pipe</option>
+            <option value="72">72" Pipe</option>
+            <option value="84">84" Pipe</option>
+            <option value="96">96" Pipe</option>
+            <option value="108">108" Pipe</option>
+            <option value="120">120" Pipe</option>
+            <option value="144">144" Pipe</option>
+        </select>
 
-            <div class="input-group">
-                <label for="maxDepth">Max Chip Depth (Inches):</label>
-                <input type="number" id="maxDepth" name="maxDepth" step="0.125" min="0" placeholder="e.g., 1.5">
-            </div>
+        <label id="ui-lbl-ref">Industry Standards (Reference Only)</label>
+        <div class="ref-flex">
+            <select id="ref-select">
+                <option value="astm">ASTM C76 / AASHTO</option>
+                <option value="npca">NPCA Standards</option>
+                <option value="acpa">ACPA Guidelines</option>
+                <option value="aci">ACI Tolerances</option>
+            </select>
+            <button class="info-btn" onclick="showReference()">?</button>
+        </div>
+    </div>
 
-            <div class="input-group checkbox-group">
-                <input type="checkbox" id="isJointDamage" name="isJointDamage">
-                <label for="isJointDamage">Defect is on Spigot or Bell</label>
-            </div>
+    <!-- Mode Toggle -->
+    <div class="mode-toggle">
+        <button class="mode-btn patch active" id="mode-patch" onclick="setMode('patch')">PATCH ENTRY</button>
+        <button class="mode-btn cull" id="mode-cull" onclick="setMode('cull')">CULL ENTRY</button>
+    </div>
 
-            <div class="button-group">
-                <button id="captureBtn" class="primary-btn">Scan Defect</button>
-                <button id="resetBtn" class="secondary-btn">Reset</button>
-            </div>
+    <!-- Defects Grid -->
+    <div class="grid" id="defect-grid">
+        <!-- Generated by JS -->
+    </div>
+</div>
 
-        </section>
+<!-- Reference Modal -->
+<div id="ref-modal" class="modal">
+    <div class="modal-body">
+        <h3 class="modal-title" id="ref-title">Standard</h3>
+        <p id="ref-desc" style="color: var(--text-muted); font-size: 14px; line-height: 1.5;"></p>
+        <button class="modal-close" id="ui-ref-close" onclick="closeModal('ref-modal')">CLOSE</button>
+    </div>
+</div>
 
-        <section class="results-container">
-            <h2>Required Patch Material:</h2>
-            <div class="output-display">
-                <span id="volumeOutput">0.0</span> <span class="unit">cu. in.</span>
-            </div>
-            <div class="output-display">
-                <span id="weightOutput">0.0</span> <span class="unit">lbs</span>
-            </div>
-            
-            <h2>Joint Damage Assessment:</h2>
-            <div class="output-display">
-                <span id="jointPercentageOutput">0.0</span> <span class="unit">% of circumference</span>
-            </div>
-            
-            <p id="statusMessage" class="status-indicator">Awaiting camera initialization...</p>
-        </section>
+<!-- History Modal -->
+<div id="history-modal" class="modal">
+    <div class="modal-body" style="max-width: 800px;">
+        <h3 class="modal-title" id="ui-hist-title">7-Day Production Log</h3>
+        <div id="history-table-container"></div>
+        <button class="export-btn" id="ui-hist-export" onclick="exportCSV()">EXPORT CSV TALLY</button>
+        <button class="modal-close" id="ui-hist-close" onclick="closeModal('history-modal')">CLOSE</button>
+    </div>
+</div>
 
-        <section class="memory-container">
-            <h2>Total Material Used by Size:</h2>
-            <ul id="memoryList" class="memory-list">
-                <li>15-inch RCP: <span id="mem-15">0.0</span> lbs</li>
-                <li>18-inch RCP: <span id="mem-18">0.0</span> lbs</li>
-                <li>24-inch RCP: <span id="mem-24">0.0</span> lbs</li>
-                <li>30-inch RCP: <span id="mem-30">0.0</span> lbs</li>
-                <li>36-inch RCP: <span id="mem-36">0.0</span> lbs</li>
-                <li>42-inch RCP: <span id="mem-42">0.0</span> lbs</li>
-                <li>48-inch RCP: <span id="mem-48">0.0</span> lbs</li>
-                <li>54-inch RCP: <span id="mem-54">0.0</span> lbs</li>
-                <li>60-inch RCP: <span id="mem-60">0.0</span> lbs</li>
-                <li>72-inch RCP: <span id="mem-72">0.0</span> lbs</li>
-                <li>Flat Surface: <span id="mem-0">0.0</span> lbs</li>
-            </ul>
-            <div class="button-group">
-                <button id="clearMemoryBtn" class="danger-btn">Clear All Totals</button>
-            </div>
-        </section>
-    </main>
+<script>
+    console.log("[INIT] QC Run Board Engine Booting...");
 
-    <script async src="opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+    // ==========================================
+    // DATA CONFIGURATION
+    // ==========================================
+    const DEFECTS = [
+        { id: "hairline", en: "Hairline Crack", es: "Grieta Fina", ref: "ASTM C497" },
+        { id: "spall", en: "Spalls / Chips", es: "Desconchados / Astillas", ref: "AASHTO M 170" },
+        { id: "steel", en: "Exposed Steel", es: "Acero Expuesto", ref: "AASHTO M 170" },
+        { id: "slugging", en: "Slugging / Voids", es: "Huecos / Vacíos", ref: "AASHTO M 170" },
+        { id: "bughole", en: "Bugholes", es: "Poros (Bugholes)", ref: "NPCA Sec 4.3.4" },
+        { id: "honeycomb", en: "Honeycomb", es: "Hormiguero", ref: "NPCA Sec 4.3.2" },
+        { id: "ends", en: "Damaged Ends", es: "Extremos Dañados", ref: "NPCA Sec 4.3.3" },
+        { id: "handling", en: "Handling Damage", es: "Daño por Manejo", ref: "NPCA Sec 4.5.1" },
+        { id: "dimensional", en: "Dimensional", es: "Dimensional", ref: "NPCA Sec 4.2" },
+        { id: "bleedout", en: "Bleedout", es: "Sangrado / Fuga", ref: "NPCA Sec 4.1.3" },
+        { id: "driver", en: "Driver Damage", es: "Daño de Chofer", ref: "Transport" }
+    ];
+
+    const REF_DICT = {
+        en: {
+            astm: { title: "ASTM C76 / AASHTO M 170", desc: "Governs baseline physical requirements, D-Load testing, and permissible variations in dimensions. Cracks passing through the wall or exposed steel exceeding tolerances are immediate culls unless engineered repairs are approved." },
+            npca: { title: "NPCA Plant Certification", desc: "Informational: Covers aesthetic and structural finishing guidelines. Honeycombing, deep bugholes, and damaged joints must be patched prior to staging. See section 4.0 for repair protocol." },
+            acpa: { title: "ACPA QCast", desc: "Informational: Emphasizes joint integrity. Any spall or chip on the bell/spigot that compromises the gasket seating area must be repaired with an approved high-strength material." },
+            aci: { title: "ACI Tolerances", desc: "Informational: Details concrete placement and consolidation standards to prevent slugging and voids during the vibration process." }
+        },
+        es: {
+            astm: { title: "ASTM C76 / AASHTO M 170", desc: "Rige los requisitos físicos básicos, pruebas de Carga D y variaciones permitidas. Grietas que atraviesan la pared o acero expuesto que excede las tolerancias son rechazos inmediatos a menos que se aprueben reparaciones diseñadas." },
+            npca: { title: "Certificación NPCA", desc: "Informativo: Cubre pautas estéticas y de acabado estructural. Hormigueros, poros profundos y juntas dañadas deben repararse antes del almacenamiento. Ver sección 4.0 para protocolo." },
+            acpa: { title: "ACPA QCast", desc: "Informativo: Enfatiza la integridad de la junta. Cualquier astilla en la campana/espiga que comprometa el área de asiento del empaque debe repararse." },
+            aci: { title: "Tolerancias ACI", desc: "Informativo: Detalla los estándares de colocación y consolidación de concreto para prevenir vacíos durante la vibración." }
+        }
+    };
+
+    const UI_DICT = {
+        en: {
+            title: "QC Run Board - Patch & Cull Counter",
+            discTitle: "Terms & Conditions",
+            discP1: "This application utilizes 2026 ASTM C76 and AASHTO standards for baseline structural calculations.",
+            discP2: "Additional standard references (NPCA, ACPA, ACI) are provided for informational and educational purposes only.",
+            discP3: "<strong>WARNING:</strong> Engineering standards update frequently. You must verify all tolerances against your plant's current engineered drawings. The developers assume no liability for structural decisions made using this tool.",
+            discBtn: "I AGREE",
+            btnHist: "History Log",
+            lblSize: "Pipe Size Selection",
+            lblRef: "Industry Standards (Reference Only)",
+            modePatch: "PATCH ENTRY",
+            modeCull: "CULL ENTRY",
+            histTitle: "7-Day Production Log",
+            histExport: "EXPORT CSV TALLY",
+            closeBtn: "CLOSE",
+            thDate: "Date", thSize: "Size", thDefect: "Defect", thType: "Status", thCount: "Count",
+            ref_astm: "ASTM C76 / AASHTO", ref_npca: "NPCA Standards", ref_acpa: "ACPA Guidelines", ref_aci: "ACI Tolerances"
+        },
+        es: {
+            title: "Tablero CC - Contador de Reparaciones y Rechazos",
+            discTitle: "Términos y Condiciones",
+            discP1: "Esta aplicación utiliza los estándares ASTM C76 y AASHTO de 2026 para cálculos estructurales básicos.",
+            discP2: "Referencias adicionales (NPCA, ACPA, ACI) se proporcionan solo con fines informativos y educativos.",
+            discP3: "<strong>ADVERTENCIA:</strong> Los estándares de ingeniería se actualizan con frecuencia. Verifique las tolerancias con los planos de su planta. Los desarrolladores no asumen responsabilidad por decisiones estructurales.",
+            discBtn: "ACEPTO",
+            btnHist: "Registro (Historial)",
+            lblSize: "Selección de Tamaño (Tubo)",
+            lblRef: "Estándares de Industria (Solo Referencia)",
+            modePatch: "REGISTRO DE REPARACIÓN",
+            modeCull: "REGISTRO DE RECHAZO",
+            histTitle: "Registro de Producción (7 Días)",
+            histExport: "EXPORTAR CSV",
+            closeBtn: "CERRAR",
+            thDate: "Fecha", thSize: "Tamaño", thDefect: "Defecto", thType: "Estado", thCount: "Total",
+            ref_astm: "ASTM C76 / AASHTO", ref_npca: "Estándares NPCA", ref_acpa: "Guías ACPA", ref_aci: "Tolerancias ACI"
+        }
+    };
+
+    // ==========================================
+    // STATE MANAGEMENT
+    // ==========================================
+    let currentLang = 'en';
+    let currentMode = 'patch';
+    let currentSize = '24';
     
-    <script src="app.js"></script>
+    // History array stored in memory/localStorage
+    let dailyLog = [];
 
+    // ==========================================
+    // INITIALIZATION
+    // ==========================================
+    function initApp() {
+        checkDisclaimer();
+        loadHistory();
+        cleanOldHistory();
+        setLanguage('en');
+        buildGrid();
+    }
+
+    function checkDisclaimer() {
+        const agreed = localStorage.getItem('qc_agreed');
+        if (agreed !== 'true') {
+            document.getElementById('disclaimer-modal').style.display = 'flex';
+        }
+    }
+
+    function acceptDisclaimer() {
+        localStorage.setItem('qc_agreed', 'true');
+        document.getElementById('disclaimer-modal').style.display = 'none';
+    }
+
+    // ==========================================
+    // LANGUAGE ENGINE
+    // ==========================================
+    function setLanguage(lang) {
+        currentLang = lang;
+        const d = UI_DICT[lang];
+
+        document.getElementById('lang-en').className = `lang-btn ${lang === 'en' ? 'active' : ''}`;
+        document.getElementById('lang-es').className = `lang-btn ${lang === 'es' ? 'active' : ''}`;
+
+        document.title = d.title;
+        document.getElementById('ui-disc-title').innerText = d.discTitle;
+        document.getElementById('ui-disc-p1').innerText = d.discP1;
+        document.getElementById('ui-disc-p2').innerText = d.discP2;
+        document.getElementById('ui-disc-p3').innerHTML = d.discP3;
+        document.getElementById('ui-disc-btn').innerText = d.discBtn;
+
+        document.getElementById('ui-btn-hist').innerText = d.btnHist;
+        document.getElementById('ui-lbl-size').innerText = d.lblSize;
+        document.getElementById('ui-lbl-ref').innerText = d.lblRef;
+        document.getElementById('mode-patch').innerText = d.modePatch;
+        document.getElementById('mode-cull').innerText = d.modeCull;
+
+        document.getElementById('ui-hist-title').innerText = d.histTitle;
+        document.getElementById('ui-hist-export').innerText = d.histExport;
+        document.getElementById('ui-hist-close').innerText = d.closeBtn;
+        document.getElementById('ui-ref-close').innerText = d.closeBtn;
+
+        const refSel = document.getElementById('ref-select');
+        refSel.options[0].text = d.ref_astm;
+        refSel.options[1].text = d.ref_npca;
+        refSel.options[2].text = d.ref_acpa;
+        refSel.options[3].text = d.ref_aci;
+
+        buildGrid(); // Rebuild grid to translate buttons
+        if (document.getElementById('history-modal').style.display === 'flex') {
+            renderHistoryTable(); // Translate table headers if open
+        }
+    }
+
+    // ==========================================
+    // CORE LOGIC
+    // ==========================================
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('mode-patch').className = `mode-btn patch ${mode === 'patch' ? 'active' : ''}`;
+        document.getElementById('mode-cull').className = `mode-btn cull ${mode === 'cull' ? 'active' : ''}`;
+        updateGridNumbers();
+    }
+
+    function changeSize() {
+        currentSize = document.getElementById('size-select').value;
+        updateGridNumbers();
+    }
+
+    function getTodayString() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function getRecord(defectId) {
+        const today = getTodayString();
+        let record = dailyLog.find(r => r.date === today && r.size === currentSize && r.defectId === defectId && r.type === currentMode);
+        if (!record) {
+            record = { date: today, size: currentSize, defectId: defectId, type: currentMode, count: 0 };
+            dailyLog.push(record);
+        }
+        return record;
+    }
+
+    function adjustCount(defectId, amount) {
+        let record = getRecord(defectId);
+        record.count += amount;
+        if (record.count < 0) record.count = 0;
+        
+        saveHistory();
+        updateGridNumbers();
+    }
+
+    // ==========================================
+    // UI BUILDERS
+    // ==========================================
+    function buildGrid() {
+        const grid = document.getElementById('defect-grid');
+        grid.innerHTML = '';
+
+        DEFECTS.forEach(def => {
+            const card = document.createElement('div');
+            card.className = 'defect-card';
+            
+            // Name based on lang
+            const defName = currentLang === 'en' ? def.en : def.es;
+            
+            card.innerHTML = `
+                <div class="defect-title">${defName}</div>
+                <div class="defect-ref">${def.ref}</div>
+                <div class="defect-count" id="count-${def.id}">0</div>
+                <button class="minus-btn" onclick="adjustCount('${def.id}', -1); event.stopPropagation();">-</button>
+                <div class="increment-overlay" onclick="adjustCount('${def.id}', 1)"></div>
+            `;
+            grid.appendChild(card);
+        });
+        updateGridNumbers();
+    }
+
+    function updateGridNumbers() {
+        DEFECTS.forEach(def => {
+            const el = document.getElementById(`count-${def.id}`);
+            if (el) {
+                const record = getRecord(def.id);
+                el.innerText = record.count;
+                el.style.color = currentMode === 'patch' ? 'var(--accent-blue)' : 'var(--accent-red)';
+            }
+        });
+    }
+
+    // ==========================================
+    // REFERENCE MODAL
+    // ==========================================
+    function showReference() {
+        const val = document.getElementById('ref-select').value;
+        const data = REF_DICT[currentLang][val];
+        if (data) {
+            document.getElementById('ref-title').innerText = data.title;
+            document.getElementById('ref-desc').innerText = data.desc;
+            document.getElementById('ref-modal').style.display = 'flex';
+        }
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    // ==========================================
+    // HISTORY & LOCAL STORAGE ENGINE
+    // ==========================================
+    function loadHistory() {
+        const stored = localStorage.getItem('qc_run_history');
+        if (stored) {
+            try { dailyLog = JSON.parse(stored); } catch (e) { dailyLog = []; }
+        }
+    }
+
+    function saveHistory() {
+        // Clean 0 count records to save space
+        dailyLog = dailyLog.filter(r => r.count > 0);
+        localStorage.setItem('qc_run_history', JSON.stringify(dailyLog));
+    }
+
+    function cleanOldHistory() {
+        // Keep only last 7 days
+        const today = new Date();
+        const cutoff = new Date(today);
+        cutoff.setDate(cutoff.getDate() - 7);
+        const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+
+        dailyLog = dailyLog.filter(r => r.date >= cutoffStr);
+        saveHistory();
+    }
+
+    function showHistory() {
+        renderHistoryTable();
+        document.getElementById('history-modal').style.display = 'flex';
+    }
+
+    function renderHistoryTable() {
+        const container = document.getElementById('history-table-container');
+        const d = UI_DICT[currentLang];
+        
+        if (dailyLog.length === 0) {
+            container.innerHTML = `<p style="text-align:center; color:var(--text-muted);">No data logged for the past 7 days.</p>`;
+            return;
+        }
+
+        // Sort by Date (newest), then Size
+        const sorted = [...dailyLog].sort((a, b) => {
+            if (a.date !== b.date) return b.date.localeCompare(a.date);
+            return parseInt(a.size) - parseInt(b.size);
+        });
+
+        let html = `<table>
+            <tr>
+                <th>${d.thDate}</th>
+                <th>${d.thSize}"</th>
+                <th>${d.thDefect}</th>
+                <th>${d.thType}</th>
+                <th>${d.thCount}</th>
+            </tr>`;
+
+        sorted.forEach(r => {
+            const defObj = DEFECTS.find(df => df.id === r.defectId);
+            const defName = defObj ? (currentLang === 'en' ? defObj.en : defObj.es) : r.defectId;
+            const typeDisp = r.type === 'patch' ? (currentLang==='en'?'PATCH':'REPARACIÓN') : (currentLang==='en'?'CULL':'RECHAZO');
+            const color = r.type === 'patch' ? 'var(--accent-blue)' : 'var(--accent-red)';
+            
+            html += `<tr>
+                <td>${r.date}</td>
+                <td>${r.size}"</td>
+                <td>${defName}</td>
+                <td style="color:${color}; font-weight:bold;">${typeDisp}</td>
+                <td style="font-weight:900;">${r.count}</td>
+            </tr>`;
+        });
+        html += `</table>`;
+        container.innerHTML = html;
+    }
+
+    // ==========================================
+    // CSV EXPORT ENGINE
+    // ==========================================
+    function exportCSV() {
+        if (dailyLog.length === 0) {
+            alert(currentLang === 'en' ? "No data to export." : "No hay datos para exportar.");
+            return;
+        }
+
+        let csvContent = "data:text/csv;charset=utf-8,";
+        
+        // Headers
+        const d = UI_DICT[currentLang];
+        csvContent += `${d.thDate},${d.thSize},${d.thDefect},${d.thType},${d.thCount}\n`;
+
+        // Sort Data
+        const sorted = [...dailyLog].sort((a, b) => {
+            if (a.date !== b.date) return b.date.localeCompare(a.date);
+            return parseInt(a.size) - parseInt(b.size);
+        });
+
+        // Rows
+        sorted.forEach(r => {
+            const defObj = DEFECTS.find(df => df.id === r.defectId);
+            const defName = defObj ? (currentLang === 'en' ? defObj.en : defObj.es) : r.defectId;
+            const typeDisp = r.type === 'patch' ? 'PATCH' : 'CULL';
+            
+            // Wrap string in quotes to prevent comma breaks
+            csvContent += `"${r.date}","${r.size}","${defName}","${typeDisp}","${r.count}"\n`;
+        });
+
+        // Encode and Trigger Download
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `QC_Run_Log_${getTodayString()}.csv`);
+        document.body.appendChild(link); // Required for FF
+        
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // Boot
+    window.onload = initApp;
+
+</script>
 </body>
 </html>
